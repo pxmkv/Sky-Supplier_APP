@@ -4,7 +4,7 @@ import urandom
 import micropyGPS
 import json
 import uasyncio as asyncio
-from machine import I2S,Pin,SDCard,I2C,SPI,UART
+from machine import Pin,I2C,SPI,UART
 import ssd1306
 import _thread
 import network
@@ -67,7 +67,6 @@ lora = LoRa(
 )
 
 
-
 def disp():
     display.fill(0)
     display.text(buf[0], 0, 0, 1)
@@ -79,8 +78,6 @@ def disp():
     display.show()
 
 has_message=False    
-
-
 
 
 def haversine(coord1, coord2):
@@ -186,7 +183,6 @@ def main():
         #tracking mode
         packs=get_packet()
         buf[2] = 'Dist ' + str(haversine(packs, data)) +' m'
-        dir_angle = compass.calculate_heading() - calculate_bearing(packs, data) 
             
         # buf[4] = "Compass " + str(compass.calculate_heading())
         # buf[5] = "Bearing " + str(calculate_bearing(packs, data) )
