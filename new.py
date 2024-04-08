@@ -176,9 +176,19 @@ def convert_to_decimal(loc):
 start_server()
 
 
-# send location
 
-# while True:
+# last_recv=''
+# def handler(x):
+#     global last_recv=x
+#     lora.recv()
+    
+
+# # Set handler
+# lora.on_recv(handler)
+# # Put module in recv mode
+
+# while True
 #     lora.send(str(get_packet()))
-#     print('lora sent')
-#     sleep(0.5)
+#     lora.recv()
+#     sleep(2)
+
