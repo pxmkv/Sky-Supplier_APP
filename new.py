@@ -172,7 +172,7 @@ def convert_to_decimal(loc):
         decimal = -decimal
     return decimal
 
-
+e_mode=False
 start_server()
 
 
@@ -187,7 +187,9 @@ start_server()
 # lora.on_recv(handler)
 # # Put module in recv mode
 
-# while True
+# global e_mode
+# if e_mode:
+#   while True
 #     lora.send(str(get_packet()))
 #     lora.recv()
 #     sleep(2)
