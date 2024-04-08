@@ -92,7 +92,7 @@ def handle_root(client, request):
     last_option = read_last_option()
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
-    gps_data = get_packet()
+    
     html_content = f"""
     <html>
         <head>
@@ -172,25 +172,27 @@ def convert_to_decimal(loc):
         decimal = -decimal
     return decimal
 
-e_mode=False
+def send_location():
+    while True:
+        gps_data = get_packet()
+        lora.send(str(get_packet()))
+        print('lora sent')
+        sleep(0.5)
+
+
+def print_messages(thread_name, delay):
+    count = 0
+    while count < 5:  # Each thread prints 5 messages and then stops
+        sleep(delay)
+        count += 1
+        print(f"{thread_name}: {count}")
+
+# Start thread 1
+_thread.start_new_thread(send_location, ())
 start_server()
+# send location
 
-
-
-# last_recv=''
-# def handler(x):
-#     global last_recv=x
-#     lora.recv()
-    
-
-# # Set handler
-# lora.on_recv(handler)
-# # Put module in recv mode
-
-# global e_mode
-# if e_mode:
-#   while True
+# while True:
 #     lora.send(str(get_packet()))
-#     lora.recv()
-#     sleep(2)
-
+#     print('lora sent')
+#     sleep(0.5)
