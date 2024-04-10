@@ -22,7 +22,8 @@ ap.active(True)
 ap.config(essid=ssid, password=password, authmode=3)
 uart = UART(1, baudrate=9600, tx=14, rx=34)  # Update pins according to your hardware setup
 my_gps = micropyGPS.MicropyGPS()
-gps_data = "data"
+gps_data = [[13, 50, 25.0], 37.8752, -122.2577]
+last_option = 0
 
 STRINGS_FILE = 'user_strings.dat'
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -154,7 +155,7 @@ def get_packet():
             return str([my_gps.timestamp, convert_to_decimal(my_gps.latitude), convert_to_decimal(my_gps.longitude)])
             
         else:
-            sample = [37, 52.51906, 'N']
+            sample = [[13, 50, 25.0], 37.8752, -122.2577, 0]
             
             print("Waiting for GPS fix...")
             return ""
@@ -180,7 +181,7 @@ def convert_to_decimal(loc):
 
 def send_location():
     while True:
-        lora.send(str(gps_data))
+        lora.send(str([gps_data, last_option]))
         print('lora sent')
         lora.recv()
         sleep(2)
@@ -211,7 +212,6 @@ def print_messages(thread_name, delay):
 
 if __name__ == "__main__":
     lora.on_recv(callback)
-	# Start thread 1
 
     _thread.start_new_thread(setup_server, ())
     send_location()
