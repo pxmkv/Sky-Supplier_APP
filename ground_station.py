@@ -16,7 +16,7 @@ import json
 import machine
 
 # Configure ESP32 as an Access Point
-ssid = 'Cyberpot_Setup'
+ssid = 'GND_STATION'
 password = '88888888'
 ap = network.WLAN(network.AP_IF)
 ap.active(True)
@@ -24,7 +24,7 @@ ap.config(essid=ssid, password=password, authmode=3)
 uart = UART(1, baudrate=9600, tx=14, rx=34)  # Update pins according to your hardware setup
 my_gps = micropyGPS.MicropyGPS()
 #gps_data = [[13, 50, 25.0], 37.8752, -122.2577, 0]
-gps_data = [[13, 50, 25.0], 37.87431, -122.25934, 0] # hesse
+gps_data = [[13, 50, 25.0], 37.87431, -122.25934] # hesse
 last_option = 0
 direction = [0, 0, 0] # only for drone
  
@@ -70,9 +70,9 @@ lora = LoRa(
 buf=['WIFI','88888888','','','','']
 
 packs = {
-    'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', 0, [0, 0, 0], 0],
+    'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
     'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
-    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0],
+    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0, 0],
 }
 
 
@@ -122,28 +122,24 @@ def handle_root(client, request):
             <meta http-equiv="refresh" content="5">
         </head>
         <body>
-            <h1>ESP32 Uptime & GPS Info</h1>
+            <h1>Drone Uptime & GPS Info</h1>
             <p>Uptime: {uptime_seconds:.2f} seconds</p>
             <p>Free Memory: {free_memory} bytes</p>
-            <p>GPS Data: {gps_data}</p>  <!-- Display GPS data -->
+            <p>GPS Data: {gps_data[1], gps_data[2]}</p>  <!-- Display GPS data -->
+            <p>Blockages: {packs['drn'][3]}</p>  
+            <p>Altitude: {packs['drn'][4]}</p>  
+            <p>Package Type: {packs['bcn'][2]}</p>
             <form action="/submit" method="post">
-                <input type="radio" id="option1" name="data" value="1" {'checked' if last_option == '1' else ''}><label for="option1">Option 1</label><br>
-                <input type="radio" id="option2" name="data" value="2" {'checked' if last_option == '2' else ''}><label for="option2">Option 2</label><br>
-                <input type="radio" id="option3" name="data" value="3" {'checked' if last_option == '3' else ''}><label for="option3">Option 3</label><br>
-                <input type="submit" value="Submit">
-            </form>
-            <p>Last Selected Option: {last_option}</p>
+            <button type="submit" name="action" value="drop_package">Drop Package</button>
+        </form>
         </body>
     </html>
     """
     send_response(client, html_content)
 
 def handle_submit(client, request):
-    post_data = request.split('\r\n\r\n', 1)[1]
-    option = post_data.split('=')[1]
-    print("Selected Option ", option)
-    with open(STRINGS_FILE, 'w') as file:
-        file.write(option)
+    # drop package
+    packs[id][5] = 1
     gc.collect()
     send_response(client, "<html><script>window.location = '/';</script></html>")
 
@@ -199,10 +195,14 @@ def convert_to_decimal(loc):
     return decimal
 
 def send_location():
+    interval = 500
+    last_log = 0
     while True:
-        lora.send(str([gps_data, id, last_option, direction]))
+        lora.send(str(packs[id]))
         print('lora sent')
-        print(str([gps_data, id, last_option]))
+        print(str(packs[id]))
+        if packs[id][5] == 1:
+            packs[id][5] = 0
         lora.recv()
         sleep(2)
 
@@ -221,6 +221,9 @@ def callback(pack):
         print("lora recv callback")
         print(data)
         packs[data[1]] = data
+        if data[1] == 'bcn':
+            with open(STRINGS_FILE, 'w') as file:
+                file.write(option)
         # Update the last RSSI value
         last_rssi = str(max(-lora.get_rssi()-43, 0))
     except Exception as e:
@@ -253,7 +256,7 @@ if __name__ == "__main__":
 
     _thread.start_new_thread(start_server, ())
     #pass
-    send_location()
+    #send_location()
     #start_server()
     #_thread.start_new_thread(send_location, ())
 

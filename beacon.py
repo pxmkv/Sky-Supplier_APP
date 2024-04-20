@@ -19,17 +19,18 @@ import machine
 
 
 # Configure ESP32 as an Access Point
-ssid = 'Cyberpot_Setup'
+ssid = 'BEACON'
 password = '88888888'
 ap = network.WLAN(network.AP_IF)
 ap.active(True)
 ap.config(essid=ssid, password=password, authmode=3)
 uart = UART(1, baudrate=9600, tx=14, rx=34)  # Update pins according to your hardware setup
 my_gps = micropyGPS.MicropyGPS()
-gps_data = [[13, 50, 25.0], 37.87276, -122.26082, 0]
+gps_data = [[13, 50, 25.0], 37.87276, -122.26082]
 #gps_data = ['no fix'] # moffit
 last_option = 0
 direction = [0, 0, 0] # only for drone
+refresh_rate = "5"
 
 STRINGS_FILE = 'user_strings.dat'
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,9 +73,9 @@ buf=['WIFI','88888888','','','','']
 id = 'bcn'
 
 packs = {
-    'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', 0, [0, 0, 0], 0],
-    'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
-    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0],
+    'bcn': [[[13, 50, 25.0], 37.87276, -122.26082], 'bcn', 0, [0, 0, 0], 0],
+    'drn': [[[13, 50, 25.0], 37.87431, -122.25934], 'drn', -1, [0, 0, 0], 0],
+    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934], 'gnd', -1, [0, 0, 0], 0],
 }
 
 def disp():
@@ -109,6 +110,7 @@ def read_last_option():
 def handle_root(client, request):
     
     last_option = read_last_option()
+    packs['bcn'][2] = last_option
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
     gps_data = get_packet()
@@ -136,7 +138,7 @@ def handle_root(client, request):
                 <input type="radio" id="option3" name="data" value="3" {'checked' if last_option == '3' else ''}><label for="option3">Option 3</label><br>
                 <input type="submit" value="Submit">
             </form>
-            <p>Last Selected Option: {last_option}</p>
+            <p>Package Type: {last_option}</p>
         </body>
     </html>
     """
@@ -149,7 +151,42 @@ def handle_submit(client, request):
     with open(STRINGS_FILE, 'w') as file:
         file.write(option)
     gc.collect()
-    send_response(client, "<html><script>window.location = '/';</script></html>")
+
+    # Send a response redirecting to the landing page
+    redirect_response = "HTTP/1.1 303 See Other\r\nLocation: /landing_page\r\n\r\n"
+    client.send(redirect_response)
+    client.close()
+
+def handle_landing_page(client, request):
+    # Create a simple HTML for the landing page
+    last_option = read_last_option()
+    packs['bcn'][2] = last_option
+    uptime_seconds = time.ticks_ms() / 1000
+    free_memory = gc.mem_free()
+    gps_data = get_packet()
+    print("root")
+    if gps_data != '':
+        packs[id][0] = gps_data
+    print("before dist")
+    dist = haversine(packs['bcn'], packs['drn'])
+    print("dist")
+    print(dist)
+    html_content = f"""
+    <html>
+        <head>
+            <title>ESP32 Uptime & Option Select</title>
+            <meta http-equiv="refresh" content="1">
+        </head>
+        <body>
+            <h1>ESP32 Uptime & GPS Info</h1>
+            <p>Uptime: {uptime_seconds:.2f} seconds</p>
+            <p>Free Memory: {free_memory} bytes</p>
+            <p>Distance: {dist}</p>  <!-- Display Beacon to Drone -->
+            <p>Package Type: {last_option}</p>
+        </body>
+    </html>
+    """
+    send_response(client, html_content)
 
 def start_server():
     print("Server thread started")
@@ -163,14 +200,18 @@ def start_server():
             request = client.recv(1024).decode('utf-8')
             if request:
                 print(f"Received request: {request}")
-            if request.startswith('POST /submit'):
-                handle_submit(client, request)
-            else:
-                handle_root(client, request)
+                path = request.split(' ')[1]
+                if path == '/submit':
+                    handle_submit(client, request)
+                elif path == '/landing_page':
+                    handle_landing_page(client, request)
+                else:
+                    handle_root(client, request)
             client.close()
             print("Client connection closed.")
     except Exception as e:
         print(f"Exception in server thread: {e}")
+
 
 
 def get_packet():
@@ -182,13 +223,13 @@ def get_packet():
 
         # Check if the data is valid
         if my_gps.valid:
-            return str([my_gps.timestamp, convert_to_decimal(my_gps.latitude), convert_to_decimal(my_gps.longitude)])
+            return [my_gps.timestamp, convert_to_decimal(my_gps.latitude), convert_to_decimal(my_gps.longitude)]
             
         else:
             sample = [[13, 50, 25.0], 37.8752, -122.2577, 0]
             
             print("Waiting for GPS fix...")
-            return [[13, 50, 25.0], 37.87276, -122.26082, 0]
+            return [[13, 50, 25.0], 37.87276, -122.26082]
             # print("Raw GPS data:", my_sentence)
             #print(convert_to_decimal(sample))
             #print_size_in_kb(sample)
@@ -204,13 +245,15 @@ def convert_to_decimal(loc):
     return decimal
 
 def send_location():
+    interval = 1000
+    last_log = 0	
     while True:
-        lora.send(str(packs[id]))
-        print('lora sent')
-        print(str([gps_data, id, last_option]))
-        lora.recv()
-        sleep(2)
-
+        if time.time() - last_log > interval:
+	    gps_data = get_packet()
+	    if gps_data != '':
+	        packs[id][0] = gps_data
+            lora.send(str(packs[id]))
+       lora.recv()
 
 
 def callback(pack):
@@ -279,13 +322,8 @@ def haversine(coord1, coord2):
 
 
 if __name__ == "__main__":
-    #_thread.start_new_thread(print_messages, ("Thread-1", 1))
     lora.on_recv(callback)
-
     _thread.start_new_thread(start_server, ())
-    #pass
     send_location()
-    #start_server()
-    #_thread.start_new_thread(send_location, ())
 
 
