@@ -16,9 +16,13 @@ import json
 import machine
 from mpl3115a2 import MPL3115A2
 from machine import I2C, Pin, ADC
+import ssd1306
 
 i2c_mpl = I2C(sda=Pin(21), scl=Pin(22)) 
 mpl = MPL3115A2(i2c_mpl, mode=MPL3115A2.ALTITUDE)
+
+#i2c = I2C(sda=Pin(21), scl=Pin(22))
+#display = ssd1306.SSD1306_I2C(128, 64, i2c)
 
 servo = PWM(Pin(25), freq=50) 
 
@@ -49,7 +53,7 @@ direction = [0, 0, 0] # only for drone
 
 STRINGS_FILE = 'user_strings.dat'
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+buf=['Sky Supplier','','','','','']
 
 
 
@@ -80,7 +84,7 @@ lora = LoRa(
     spreading_factor=10,
     coding_rate=5,
 )
-print('setup')
+
 buf=['WIFI','88888888','','','','']
 
 packs = {
@@ -96,6 +100,7 @@ packs = {
 unique_id = machine.unique_id()
 
 id = 'drn'
+
 
 def read_distance(ir):
     adc_value = ir.read()
@@ -154,7 +159,7 @@ def convert_to_decimal(loc):
     return decimal
 
 def send_location():
-    interval = 500
+    interval = 1
     last_log = 0	
     while True:
        if time.time() - last_log > interval:
@@ -164,6 +169,9 @@ def send_location():
 	   if gps_data != '':
 	       packs[id][0] = gps_data
            lora.send(str(packs[id]))
+           print('lora sent')
+           print(str(packs[id]))
+           last_log = time.time()
        lora.recv()
         
 def callback(pack):

@@ -38,7 +38,7 @@ btn   = Pin(35,Pin.IN,Pin.PULL_UP)
 
 
 
-btn   = Pin(35,Pin.IN,Pin.PULL_UP)
+
 
 # Lora initialization
 # SPI pins
@@ -67,7 +67,9 @@ lora = LoRa(
     spreading_factor=10,
     coding_rate=5,
 )
-buf=['WIFI','88888888','','','','']
+buf=[ssid,'88888888','192.168.4.1','','','']
+
+
 
 packs = {
     'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
@@ -109,12 +111,74 @@ def read_last_option():
             return file.read().strip()
     except OSError:
         return ""
+        
+def calculate_bearing(coord1, coord2):
+    """
+    Calculate the bearing from coord1 to coord2 in degrees.
+
+    Parameters:
+    coord1 (tuple): A tuple containing the latitude and longitude of the first location (lat1, lon1)
+    coord2 (tuple): A tuple containing the latitude and longitude of the second location (lat2, lon2)
+
+    Returns:
+    float: Bearing in degrees from North
+    """
+    lat1, lon1 = coord1[0][1], coord1[0][2]
+    lat2, lon2 = coord2[0][1], coord2[0][2]
+
+    # Convert latitude and longitude from degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+    # Calculate bearing
+    dlon = lon2 - lon1
+    x = math.sin(dlon) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - (math.sin(lat1) * math.cos(lat2) * math.cos(dlon))
+
+    initial_bearing = math.atan2(x, y)
+
+    # Convert bearing from radians to degrees
+    initial_bearing = math.degrees(initial_bearing)
+
+    # Normalize bearing to 0 <= bearing < 360
+    bearing = (initial_bearing + 360) % 360
+
+    return bearing
+
+
+def haversine(coord1, coord2):
+    print(coord1, coord2)
+    # Radius of the Earth in km
+    R =  6378137.0
+    # Extract latitude and longitude from the coordinates
+    lat1, lon1 = coord1[0][1], coord1[0][2]
+    lat2, lon2 = coord2[0][1], coord2[0][2]
+    
+
+    # Convert coordinates from degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+
+    # Difference in coordinates
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+
+    # Haversine formula
+    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    distance = R * c 
+    return distance
+
 
 def handle_root(client, request):
     last_option = read_last_option()
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
-
+    bcn_gps = [packs['bcn'][0][1], packs['bcn'][0][2]]
+    drn_gps = [packs['drn'][0][1], packs['drn'][0][2]]
+    dist = haversine(packs['bcn'], packs['drn'])
+    direction = calculate_bearing(packs['bcn'], packs['drn'])
     html_content = f"""
     <html>
         <head>
@@ -125,7 +189,10 @@ def handle_root(client, request):
             <h1>Drone Uptime & GPS Info</h1>
             <p>Uptime: {uptime_seconds:.2f} seconds</p>
             <p>Free Memory: {free_memory} bytes</p>
-            <p>GPS Data: {gps_data[1], gps_data[2]}</p>  <!-- Display GPS data -->
+            <p>Beacon GPS: {bcn_gps}</p>  <!-- Display GPS data -->
+            <p>Drone GPS: {drn_gps}</p>  <!-- Display GPS data -->
+            <p>Distance: {dist} meters</p>  <!-- Display Beacon to Drone -->
+            <p>Direction: {direction} degrees from north</p>  <!-- Display Beacon to Drone -->
             <p>Blockages: {packs['drn'][3]}</p>  
             <p>Altitude: {packs['drn'][4]}</p>  
             <p>Package Type: {packs['bcn'][2]}</p>
@@ -179,7 +246,7 @@ def get_packet():
             sample = [[13, 50, 25.0], 37.8752, -122.2577, 0]
             
             print("Waiting for GPS fix...")
-            return "no fix"
+            return [[13, 50, 25.0], 37.87431, -122.25934, 0]
             # print("Raw GPS data:", my_sentence)
             #print(convert_to_decimal(sample))
             #print_size_in_kb(sample)
@@ -195,16 +262,21 @@ def convert_to_decimal(loc):
     return decimal
 
 def send_location():
-    interval = 500
-    last_log = 0
+    interval = 1
+    last_log = 0	
+    print('send location')
     while True:
-        lora.send(str(packs[id]))
-        print('lora sent')
-        print(str(packs[id]))
-        if packs[id][5] == 1:
-            packs[id][5] = 0
+    	if (time.time() - last_log) > interval:
+	    gps_data = get_packet()
+	    if gps_data != '':
+	        packs[id][0] = gps_data
+            lora.send(str(packs[id]))
+            print('lora sent')
+            print(str(packs[id]))
+            if packs[id][5] == 1:
+                packs[id][5] = 0
+            last_log = time.time()
         lora.recv()
-        sleep(2)
 
 
 
@@ -251,12 +323,12 @@ def print_messages(thread_name, delay):
 
 
 if __name__ == "__main__":
+    
     #_thread.start_new_thread(print_messages, ("Thread-1", 1))
     lora.on_recv(callback)
-
     _thread.start_new_thread(start_server, ())
-    #pass
-    #send_location()
+    lora.recv()
+    send_location()
     #start_server()
     #_thread.start_new_thread(send_location, ())
 

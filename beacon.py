@@ -66,7 +66,7 @@ lora = LoRa(
     spreading_factor=10,
     coding_rate=5,
 )
-buf=['WIFI','88888888','','','','']
+buf=[ssid,'88888888','192.168.4.1','','','']
 
 #id = '-'.join([
 #    unique_id[4:6].hex()])
@@ -114,13 +114,9 @@ def handle_root(client, request):
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
     gps_data = get_packet()
-    print("root")
     if gps_data != '':
         packs[id][0] = gps_data
-    print("before dist")
     dist = haversine(packs['bcn'], packs['drn'])
-    print("dist")
-    print(dist)
     html_content = f"""
     <html>
         <head>
@@ -131,7 +127,7 @@ def handle_root(client, request):
             <h1>ESP32 Uptime & GPS Info</h1>
             <p>Uptime: {uptime_seconds:.2f} seconds</p>
             <p>Free Memory: {free_memory} bytes</p>
-            <p>Distance: {dist}</p>  <!-- Display Beacon to Drone -->
+            <p>Distance: {dist} meters</p>  <!-- Display Beacon to Drone -->
             <form action="/submit" method="post">
                 <input type="radio" id="option1" name="data" value="1" {'checked' if last_option == '1' else ''}><label for="option1">Option 1</label><br>
                 <input type="radio" id="option2" name="data" value="2" {'checked' if last_option == '2' else ''}><label for="option2">Option 2</label><br>
@@ -164,7 +160,7 @@ def handle_landing_page(client, request):
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
     gps_data = get_packet()
-    print("root")
+
     if gps_data != '':
         packs[id][0] = gps_data
     print("before dist")
@@ -181,7 +177,7 @@ def handle_landing_page(client, request):
             <h1>ESP32 Uptime & GPS Info</h1>
             <p>Uptime: {uptime_seconds:.2f} seconds</p>
             <p>Free Memory: {free_memory} bytes</p>
-            <p>Distance: {dist}</p>  <!-- Display Beacon to Drone -->
+            <p>Distance: {dist} meters</p>  <!-- Display Beacon to Drone -->
             <p>Package Type: {last_option}</p>
         </body>
     </html>
@@ -194,7 +190,7 @@ def start_server():
         setup_server()
         print("Server bound to address and listening...")
         while True:
-            print("Waiting for a connection...")
+            #print("Waiting for a connection...")
             client, addr = server_socket.accept()
             print(f"Connection from {addr}")
             request = client.recv(1024).decode('utf-8')
@@ -208,7 +204,7 @@ def start_server():
                 else:
                     handle_root(client, request)
             client.close()
-            print("Client connection closed.")
+            #print("Client connection closed.")
     except Exception as e:
         print(f"Exception in server thread: {e}")
 
@@ -245,15 +241,19 @@ def convert_to_decimal(loc):
     return decimal
 
 def send_location():
-    interval = 1000
+    interval = 1
     last_log = 0	
+    print('send location')
     while True:
-        if time.time() - last_log > interval:
+    	if (time.time() - last_log) > interval:
 	    gps_data = get_packet()
 	    if gps_data != '':
 	        packs[id][0] = gps_data
             lora.send(str(packs[id]))
-       lora.recv()
+            print('lora sent')
+            print(str(packs[id]))
+            last_log = time.time()
+        lora.recv()
 
 
 def callback(pack):
@@ -285,8 +285,6 @@ def print_messages(thread_name, delay):
         print(f"{thread_name}: {count}")
 
 def haversine(coord1, coord2):
-    print("haversine")
-    print(coord1, coord2)
     # Radius of the Earth in km
     R =  6378137.0
     # Extract latitude and longitude from the coordinates
