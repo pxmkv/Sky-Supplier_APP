@@ -72,14 +72,17 @@ buf=[ssid,'88888888','192.168.4.1','','','']
 
 
 packs = {
+    #id: [gps, id, package type, blockages, altitude, drop]
     'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
-    'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
+    #'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
+    'drn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'drn', -1, [0, 0, 0], 0],
     'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0, 0],
 }
 
 
 
 id = 'gnd'
+show_drop_button = False
 
 
 
@@ -146,8 +149,8 @@ def calculate_bearing(coord1, coord2):
 
 
 def haversine(coord1, coord2):
-    print(coord1, coord2)
     # Radius of the Earth in km
+    global show_drop_button
     R =  6378137.0
     # Extract latitude and longitude from the coordinates
     lat1, lon1 = coord1[0][1], coord1[0][2]
@@ -168,7 +171,11 @@ def haversine(coord1, coord2):
     a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     distance = R * c 
+    if distance < 10:
+    	show_drop_button = True
     return distance
+
+
 
 
 def handle_root(client, request):
@@ -179,11 +186,15 @@ def handle_root(client, request):
     drn_gps = [packs['drn'][0][1], packs['drn'][0][2]]
     dist = haversine(packs['bcn'], packs['drn'])
     direction = calculate_bearing(packs['bcn'], packs['drn'])
+    
+    button_html = f'<button type="submit" name="action" value="drop_package">Drop Package</button>' if show_drop_button else ""
+
+    
     html_content = f"""
     <html>
         <head>
             <title>ESP32 Uptime & Option Select</title>
-            <meta http-equiv="refresh" content="5">
+            <meta http-equiv="refresh" content="3">
         </head>
         <body>
             <h1>Drone Uptime & GPS Info</h1>
@@ -197,8 +208,8 @@ def handle_root(client, request):
             <p>Altitude: {packs['drn'][4]}</p>  
             <p>Package Type: {packs['bcn'][2]}</p>
             <form action="/submit" method="post">
-            <button type="submit" name="action" value="drop_package">Drop Package</button>
-        </form>
+                {button_html}
+            </form>
         </body>
     </html>
     """
@@ -234,10 +245,13 @@ def start_server():
 
 def get_packet():
     if uart.any():
-        my_sentence = uart.readline().decode('utf-8')
-        print(my_sentence)
-        for x in my_sentence:
-            my_gps.update(x)
+        try:
+            my_sentence = uart.readline().decode('utf-8')
+            print(my_sentence)
+            for x in my_sentence:
+                my_gps.update(x)
+        except:
+            return [[13, 50, 25.0], 37.87431, -122.25934, 0]
 
         # Check if the data is valid
         if my_gps.valid:
@@ -245,7 +259,9 @@ def get_packet():
         else:
             sample = [[13, 50, 25.0], 37.8752, -122.2577, 0]
             
-            print("Waiting for GPS fix...")
+            #print("Waiting for GPS fix...")
+            buf[3] = "no fix"
+            disp()
             return [[13, 50, 25.0], 37.87431, -122.25934, 0]
             # print("Raw GPS data:", my_sentence)
             #print(convert_to_decimal(sample))
@@ -323,13 +339,10 @@ def print_messages(thread_name, delay):
 
 
 if __name__ == "__main__":
-    
-    #_thread.start_new_thread(print_messages, ("Thread-1", 1))
     lora.on_recv(callback)
     _thread.start_new_thread(start_server, ())
     lora.recv()
     send_location()
-    #start_server()
-    #_thread.start_new_thread(send_location, ())
+
 
 
