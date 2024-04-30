@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Grid Graph with Colored Dots</title>
+<style>
+  canvas {
+    border: 1px solid black;
+    display: block;
+    margin: 20px auto;
+  }
+</style>
+</head>
+<body>
+<canvas id="gridCanvas" width="500" height="500"></canvas>
+<script>
+  const canvas = document.getElementById('gridCanvas');
+  const ctx = canvas.getContext('2d');
+  const gridSize = 50; // Size of the grid
+
+  // Function to draw grid
+  function drawGrid() {
+    ctx.beginPath();
+    for (let x = 0; x <= canvas.width; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+    }
+    for (let y = 0; y <= canvas.height; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+    }
+    ctx.strokeStyle = '#aaa'; // Grid line color
+    ctx.stroke();
+  }
+
+  // Function to draw dots
+  function drawDots() {
+    const centerGridX = Math.round(canvas.width / 2 / gridSize) * gridSize;
+    const centerGridY = Math.round(canvas.height / 2 / gridSize) * gridSize;
+    const points = [
+      { x: centerGridX, y: centerGridY, color: 'blue' },  // Central dot
+      { x: 2 * gridSize, y: 3 * gridSize, color: 'green' }, // Dot at (2, 3)
+      { x: 4 * gridSize, y: 4 * gridSize, color: 'purple' }  // Dot at (4, 4)
+    ];
+    points.forEach(point => {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = point.color; // Use the color specified for each point
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+
+  drawGrid();
+  drawDots(); // Draw the dots after the grid
+</script>
+</body>
+</html>
