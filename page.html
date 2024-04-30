@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Grid Graph with Compass Directions</title>
+<title>Grid Graph with Positive Axis Numbers and Larger Compass Directions</title>
 <style>
   canvas {
     border: 1px solid black;
@@ -28,26 +28,26 @@
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
       // Draw labels on the x-axis
-      if (x !== centerGridX) { // Avoid center label clash
-        ctx.fillText((x - centerGridX) / gridSize + ' miles', x + 2, centerGridY + 15);
-      }
+      const labelX = Math.abs((x - centerGridX) / gridSize);
+      ctx.fillText(labelX + ' miles', x + 2, centerGridY + 20);
     }
     for (let y = 0; y <= canvas.height; y += gridSize) {
       ctx.moveTo(0, y);
       ctx.lineTo(canvas.width, y);
       // Draw labels on the y-axis
-      if (y !== centerGridY) { // Avoid center label clash
-        ctx.fillText(-(y - centerGridY) / gridSize + ' miles', centerGridX + 5, y + 12);
-      }
+      const labelY = Math.abs((y - centerGridY) / gridSize);
+      ctx.fillText(labelY + ' miles', centerGridX + 10, y + 12);
     }
     ctx.strokeStyle = '#aaa'; // Grid line color
     ctx.stroke();
 
-    // Draw compass directions
-    ctx.fillText('N', centerGridX, 10); // North
-    ctx.fillText('S', centerGridX, canvas.height - 5); // South
-    ctx.fillText('E', canvas.width - 10, centerGridY + 5); // East
+    // Draw compass directions with larger font
+    ctx.font = '16px Arial'; // Larger font for compass directions
+    ctx.fillText('N', centerGridX - 10, 20); // North
+    ctx.fillText('S', centerGridX - 10, canvas.height - 5); // South
+    ctx.fillText('E', canvas.width - 25, centerGridY + 5); // East
     ctx.fillText('W', 5, centerGridY + 5); // West
+    ctx.font = '12px Arial'; // Reset font size for other text
   }
 
   // Function to draw dots
