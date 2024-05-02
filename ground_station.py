@@ -24,7 +24,7 @@ ap.config(essid=ssid, password=password, authmode=3)
 uart = UART(1, baudrate=9600, tx=14, rx=34)  # Update pins according to your hardware setup
 my_gps = micropyGPS.MicropyGPS()
 #gps_data = [[13, 50, 25.0], 37.8752, -122.2577, 0]
-gps_data = [[13, 50, 25.0], 37.87431, -122.25934] # hesse
+#gps_data = [[13, 50, 25.0], 37.87431, -122.25934] # hesse
 last_option = 0
 direction = [0, 0, 0] # only for drone
  
@@ -73,16 +73,17 @@ buf=[ssid,'88888888','192.168.4.1','','','']
 
 packs = {
     #id: [gps, id, package type, blockages, altitude, drop]
-    'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
-    #'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
-    'drn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'drn', -1, [0, 0, 0], 0],
+    #'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
+    'bcn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'bcn', -1, [0, 0, 0], 0],
+    'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
+    #'drn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'drn', -1, [0, 0, 0], 0],
     'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0, 0],
 }
 
 
 
 id = 'gnd'
-show_drop_button = False
+#show_drop_button = False
 
 
 
@@ -150,7 +151,7 @@ def calculate_bearing(coord1, coord2):
 
 def haversine(coord1, coord2):
     # Radius of the Earth in km
-    global show_drop_button
+    #global show_drop_button
     R =  6378137.0
     # Extract latitude and longitude from the coordinates
     lat1, lon1 = coord1[0][1], coord1[0][2]
@@ -171,55 +172,117 @@ def haversine(coord1, coord2):
     a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     distance = R * c 
-    if distance < 10:
-    	show_drop_button = True
+    #if distance < 10:
+    #	show_drop_button = True
     return distance
-
-
 
 
 def handle_root(client, request):
     last_option = read_last_option()
     uptime_seconds = time.ticks_ms() / 1000
     free_memory = gc.mem_free()
+    gnd_gps = [packs['gnd'][0][1], packs['gnd'][0][2]]
     bcn_gps = [packs['bcn'][0][1], packs['bcn'][0][2]]
     drn_gps = [packs['drn'][0][1], packs['drn'][0][2]]
     dist = haversine(packs['bcn'], packs['drn'])
     direction = calculate_bearing(packs['bcn'], packs['drn'])
-    
-    button_html = f'<button type="submit" name="action" value="drop_package">Drop Package</button>' if show_drop_button else ""
 
-    
+    submit_button_html = f"""
+    <form action="/submit" method="post">
+        <button type="submit" name="action" value="load_drone">Load Drone</button>
+    </form>
+    """
+    if dist <= 10:
+        submit_button_html += """
+        <form action="/submit" method="post">
+            <button type="submit" name="action" value="drop_package">Drop Package</button>
+        </form>
+        """
+
     html_content = f"""
-    <html>
-        <head>
-            <title>ESP32 Uptime & Option Select</title>
-            <meta http-equiv="refresh" content="3">
-        </head>
-        <body>
-            <h1>Drone Uptime & GPS Info</h1>
-            <p>Uptime: {uptime_seconds:.2f} seconds</p>
-            <p>Free Memory: {free_memory} bytes</p>
-            <p>Beacon GPS: {bcn_gps}</p>  <!-- Display GPS data -->
-            <p>Drone GPS: {drn_gps}</p>  <!-- Display GPS data -->
-            <p>Distance: {dist} meters</p>  <!-- Display Beacon to Drone -->
-            <p>Direction: {direction} degrees from north</p>  <!-- Display Beacon to Drone -->
-            <p>Blockages: {packs['drn'][3]}</p>  
-            <p>Altitude: {packs['drn'][4]}</p>  
-            <p>Package Type: {packs['bcn'][2]}</p>
-            <form action="/submit" method="post">
-                {button_html}
-            </form>
-        </body>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <title>Drone Control Panel</title>
+    <style>
+      canvas {{
+        border: 1px solid black;
+        display: block;
+        margin: 20px auto;
+      }}
+    </style>
+    </head>
+    <body>
+    <h1>Drone Uptime & GPS Info</h1>
+    <p>Uptime: {uptime_seconds:.2f} seconds</p>
+    <p>Free Memory: {free_memory} bytes</p>
+    <canvas id="gridCanvas" width="500" height="500"></canvas>
+    <script>
+      const canvas = document.getElementById('gridCanvas');
+      const ctx = canvas.getContext('2d');
+      const gridSize = 50; // Each grid block represents 20 meters
+      const kmRange = 1; // The grid represents 1 km in each direction
+      const centerGridX = canvas.width / 2;
+      const centerGridY = canvas.height / 2;
+
+      function drawGrid() {{
+        for (let x = 0; x <= canvas.width; x += gridSize) {{
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.moveTo(0, x);
+          ctx.lineTo(canvas.width, x);
+        }}
+        ctx.strokeStyle = '#aaa';
+        ctx.stroke();
+        ctx.fillText('N  1km', centerGridX - 10, 20);
+        ctx.fillText('S  1km', centerGridX - 10, canvas.height - 5);
+        ctx.fillText('E  1km', canvas.width - 25, centerGridY + 5);
+        ctx.fillText('W  1km', 5, centerGridY + 5);
+      }}
+
+      function drawPoints() {{
+        const groundStation = {{ x: centerGridX, y: centerGridY, color: 'blue', label: 'Ground Station' }};
+        const dronePosition = {{ x: centerGridX + ({gnd_gps[1]} - {drn_gps[1]}) * 1000 * 50, y: centerGridY - ({gnd_gps[0]} - {drn_gps[0]}) * 1000 * 50, color: 'red', label: 'Drone' }};
+        const beaconPosition = {{ x: centerGridX + ({gnd_gps[1]} - {bcn_gps[1]}) * 1000 * 50, y: centerGridY - ({gnd_gps[0]} - {bcn_gps[0]}) * 1000 * 50, color: 'green', label: 'Beacon' }};
+        
+
+        [groundStation, dronePosition, beaconPosition].forEach(point => {{
+          ctx.fillStyle = point.color;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.fillText(point.label, point.x + 10, point.y - 10);
+        }});
+      }}
+
+      drawGrid();
+      drawPoints();
+    </script>
+    <p>Beacon GPS: {bcn_gps}</p>
+    <p>Drone GPS: {drn_gps}</p>
+    <p>Distance: {dist} meters</p>
+    <p>Direction: {direction} degrees from north</p>
+    <p>Package Type: {packs['bcn'][2]}</p>
+    {submit_button_html}
+    </body>
     </html>
     """
     send_response(client, html_content)
 
+
 def handle_submit(client, request):
-    # drop package
-    packs[id][5] = 1
+    if 'action=drop_package' in request:
+        packs[id][5] = 1  
+        action_description = "Dropping package..."
+    elif 'action=load_drone' in request:
+        packs[id][5] = 2  
+        action_description = "Loading drone..."
+    else:
+        action_description = "No action specified."
     gc.collect()
-    send_response(client, "<html><script>window.location = '/';</script></html>")
+    send_response(client, f"<html><script>alert('{action_description}'); window.location = '/';</script></html>")
+
 
 def start_server():
     print("Server thread started")
@@ -247,7 +310,8 @@ def get_packet():
     if uart.any():
         try:
             my_sentence = uart.readline().decode('utf-8')
-            print(my_sentence)
+            buf[4] = my_sentence 
+            disp()
             for x in my_sentence:
                 my_gps.update(x)
         except:
@@ -262,7 +326,7 @@ def get_packet():
             #print("Waiting for GPS fix...")
             buf[3] = "no fix"
             disp()
-            return [[13, 50, 25.0], 37.87431, -122.25934, 0]
+            return packs[id][0]
             # print("Raw GPS data:", my_sentence)
             #print(convert_to_decimal(sample))
             #print_size_in_kb(sample)
@@ -289,7 +353,7 @@ def send_location():
             lora.send(str(packs[id]))
             print('lora sent')
             print(str(packs[id]))
-            if packs[id][5] == 1:
+            if packs[id][5] == 1 or packs[id][5] == 2:
                 packs[id][5] = 0
             last_log = time.time()
         lora.recv()
@@ -302,16 +366,19 @@ def callback(pack):
     try:
         # Replace single quotes with double quotes for valid JSON
         corrected_string = pack.decode('utf-8').replace("'", '"')
-        
+        print('corrected', corrected_string)
         # Parse the JSON data
         tmp = json.loads(corrected_string)
+        print('tmp', tmp)
         data = tmp
         print("lora recv callback")
         print(data)
         packs[data[1]] = data
         if data[1] == 'bcn':
             with open(STRINGS_FILE, 'w') as file:
-                file.write(option)
+                print('data[2]', data[2])
+                file.write(str(data[2]))
+                print('done writing')
         # Update the last RSSI value
         last_rssi = str(max(-lora.get_rssi()-43, 0))
     except Exception as e:

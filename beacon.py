@@ -213,7 +213,8 @@ def start_server():
 def get_packet():
     if uart.any():
         my_sentence = uart.readline().decode('utf-8')
-        print(my_sentence)
+        buf[4] = my_sentence 
+        disp()
         for x in my_sentence:
             my_gps.update(x)
 
@@ -224,7 +225,8 @@ def get_packet():
         else:
             sample = [[13, 50, 25.0], 37.8752, -122.2577, 0]
             
-            print("Waiting for GPS fix...")
+            buf[3] = "no fix" 
+            disp()
             return [[13, 50, 25.0], 37.87276, -122.26082]
             # print("Raw GPS data:", my_sentence)
             #print(convert_to_decimal(sample))
@@ -322,6 +324,7 @@ def haversine(coord1, coord2):
 if __name__ == "__main__":
     lora.on_recv(callback)
     _thread.start_new_thread(start_server, ())
+    lora.recv()
     send_location()
 
 
