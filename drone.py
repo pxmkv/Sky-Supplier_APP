@@ -93,10 +93,10 @@ buf=['Sky Supplier','','','','','']
 packs = {
     #id: [gps, id, package type, blockages, altitude, drop]
     #'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
-    'bcn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'bcn', -1, [0, 0, 0], 0],
-    'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
+    'bcn': [[[13, 50, 25.0], 37.87431, -122.25934], 'bcn', -1, [0, 0, 0], 0],
+    'drn': [[[13, 50, 25.0], 37.87431, -122.25934], 'drn', -1, [0, 0, 0], 0],
     #'drn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'drn', -1, [0, 0, 0], 0],
-    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0, 0],
+    'gnd': [[[12, 4, 34.0], 37.87439, -122.2594], 'gnd', -1, [0, 0, 0], 0, 0],
 }
 
 
@@ -138,10 +138,13 @@ def read_distance(ir):
     if voltage == 0:
         return str(False)  # Avoid division by zero, return 'infinity' if no reading
     distance = 27.86 * (voltage ** -1.15)  # Example formula, might need calibration for accuracy
-    return str(distance > 30)
+    if distance < 30:
+    	return 1
+    else:
+        return 0
 
 def sensor_read():
-    return [read_distance(ir_l),read_distance(ir_f),read_distance(ir_r)]
+    return [read_distance(ir_l),0,read_distance(ir_r)]
 
 
 def get_packet():
@@ -162,15 +165,15 @@ def get_packet():
 
         if my_gps.valid:
             packs[id][0] = [my_gps.timestamp, convert_to_decimal(my_gps.latitude), convert_to_decimal(my_gps.longitude)]
-            return str(packs[id][0])
+            return packs[id][0]
         else:
             buf[3] = "no fix"
             disp()
-            return str(packs[id][0])  # Use the last known good coordinates if no fix available
+            return packs[id][0]  # Use the last known good coordinates if no fix available
 
     else:
         print("No data from GPS module.")
-        return str(packs[id][0])  # Return last known good coordinates if no data available
+        return packs[id][0]  # Return last known good coordinates if no data available
 
 def convert_to_decimal(loc):
     # This function assumes 'loc' is a tuple containing the degree, minute, and optionally the hemisphere ('N', 'S', 'E', 'W')
