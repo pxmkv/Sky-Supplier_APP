@@ -74,10 +74,10 @@ buf=[ssid,'88888888','192.168.4.1','','','']
 packs = {
     #id: [gps, id, package type, blockages, altitude, drop]
     #'bcn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'bcn', -1, [0, 0, 0], 0],
-    'bcn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'bcn', -1, [0, 0, 0], 0],
-    'drn': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'drn', -1, [0, 0, 0], 0],
+    'bcn': [[[13, 50, 25.0], 37.87431, -122.25934], 'bcn', -1, [0, 0, 0], 0],
+    'drn': [[[13, 50, 25.0], 37.87431, -122.25934], 'drn', -1, [0, 0, 0], 0],
     #'drn': [[[13, 50, 25.0], 37.87276, -122.26082, 0], 'drn', -1, [0, 0, 0], 0],
-    'gnd': [[[13, 50, 25.0], 37.87431, -122.25934, 0], 'gnd', -1, [0, 0, 0], 0, 0],
+    'gnd': [[[12, 4, 34.0], 37.87439, -122.2594], 'gnd', -1, [0, 0, 0], 0, 0],
 }
 
 
@@ -156,7 +156,8 @@ def haversine(coord1, coord2):
     # Extract latitude and longitude from the coordinates
     lat1, lon1 = coord1[0][1], coord1[0][2]
     lat2, lon2 = coord2[0][1], coord2[0][2]
-    
+    print("coord1",coord1, lat1, lon1)
+    print("coord2",coord2, lat2, lon2)
 
     # Convert coordinates from degrees to radians
     lat1_rad = math.radians(lat1)
@@ -185,13 +186,22 @@ def handle_root(client, request):
     bcn_gps = [packs['bcn'][0][1], packs['bcn'][0][2]]
     drn_gps = [packs['drn'][0][1], packs['drn'][0][2]]
     dist = haversine(packs['bcn'], packs['drn'])
+    print("beacon", packs['bcn'])
+    print("drone", packs['drn'])
+    #dist2 = haversine(packs['gnd'], packs['drn'])
     direction = calculate_bearing(packs['bcn'], packs['drn'])
+    print("dist1", dist)
+    #print("dist2", dist2)
 
     submit_button_html = f"""
     <form action="/submit" method="post">
         <button type="submit" name="action" value="load_drone">Load Drone</button>
     </form>
     """
+    #if dist2 <= 10:
+    #    submit_button_html += """
+        
+    #    """
     if dist <= 10:
         submit_button_html += """
         <form action="/submit" method="post">
@@ -205,18 +215,57 @@ def handle_root(client, request):
     <head>
     <meta charset="UTF-8">
     <title>Drone Control Panel</title>
+    <meta http-equiv="refresh" content="1">
     <style>
+        body {{
+    		background-color: #fdb515; /* Set background color to #fdb515 */
+    		color: #003262; /* Set text color to #003262 */
+    		font-family: Arial, sans-serif; /* Change font to Arial */
+  		}}
       canvas {{
-        border: 1px solid black;
-        display: block;
-        margin: 20px auto;
+        background-color: #f0f0f0; /* Set grid background color to #f0f0f0 */
+    border: 1px solid #003262; /* Set border color to #003262 */
+    display: block;
+    margin: 20px auto;
       }}
+      h1 {{
+    text-align: center; /* Center align the title */
+    font-family: Impact, Charcoal, sans-serif; /* Change font family of title */
+    font-size: 60px; /* Set font size to 60 pixels */
+  }}
+  p {{
+
+    margin-bottom: 10px; /* Add bottom margin to paragraphs */
+  }}
+  p strong {{
+    font-weight: bold; /* Make words before ":" bold */
+  }}
+    .grid-info {{
+    text-align: center; /* Center text */
+    margin: auto; /* Center the container */
+    width: 80%; /* Or any other width */
+    padding: 10px;
+}}
     </style>
     </head>
     <body>
-    <h1>Drone Uptime & GPS Info</h1>
-    <p>Uptime: {uptime_seconds:.2f} seconds</p>
-    <p>Free Memory: {free_memory} bytes</p>
+<h1><span style="font-weight:normal;">Drone</span> Control Panel</h1>
+<div class="grid-info">
+  <div>
+    <p><strong>Distance</strong>: {dist} meters</p>
+    <p><strong>Direction</strong>: {direction} degrees from north</p>
+    <p><strong>Package Type</strong>: {packs['bcn'][2]}</p>
+    <p><strong>Blockages: {packs['drn'][3]}</p>
+    <p><strong>Altitude: {packs['drn'][4]}</p>
+    
+  </div>
+  <div>
+    <p class="gps-info"><strong>Beacon GPS</strong>: {bcn_gps}</p>
+    <p class="gps-info"><strong>Drone GPS</strong>: {drn_gps}</p>
+   
+  </div>
+  {submit_button_html}
+</div>
     <canvas id="gridCanvas" width="500" height="500"></canvas>
     <script>
       const canvas = document.getElementById('gridCanvas');
@@ -227,19 +276,22 @@ def handle_root(client, request):
       const centerGridY = canvas.height / 2;
 
       function drawGrid() {{
-        for (let x = 0; x <= canvas.width; x += gridSize) {{
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, canvas.height);
-          ctx.moveTo(0, x);
-          ctx.lineTo(canvas.width, x);
-        }}
-        ctx.strokeStyle = '#aaa';
-        ctx.stroke();
-        ctx.fillText('N  1km', centerGridX - 10, 20);
-        ctx.fillText('S  1km', centerGridX - 10, canvas.height - 5);
-        ctx.fillText('E  1km', canvas.width - 25, centerGridY + 5);
-        ctx.fillText('W  1km', 5, centerGridY + 5);
+      ctx.fillStyle = '#f0f0f0'; /* Set grid background color to #f0f0f0 */
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      for (let x = 0; x <= canvas.width; x += gridSize) {{
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.moveTo(0, x);
+        ctx.lineTo(canvas.width, x);
       }}
+      ctx.strokeStyle = '#003262'; /* Set stroke color to #003262 */
+      ctx.stroke();
+      ctx.fillText('N  1km', centerGridX - 10, 20);
+      ctx.fillText('S  1km', centerGridX - 10, canvas.height - 5);
+      ctx.fillText('E  1km', canvas.width - 25, centerGridY + 5);
+      ctx.fillText('W  1km', 5, centerGridY + 5);
+    }}
 
       function drawPoints() {{
         const groundStation = {{ x: centerGridX, y: centerGridY, color: 'blue', label: 'Ground Station' }};
@@ -259,12 +311,7 @@ def handle_root(client, request):
       drawGrid();
       drawPoints();
     </script>
-    <p>Beacon GPS: {bcn_gps}</p>
-    <p>Drone GPS: {drn_gps}</p>
-    <p>Distance: {dist} meters</p>
-    <p>Direction: {direction} degrees from north</p>
-    <p>Package Type: {packs['bcn'][2]}</p>
-    {submit_button_html}
+    
     </body>
     </html>
     """
